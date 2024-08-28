@@ -1,0 +1,11 @@
+[package]
+name = "csv_query"
+version = "0.1.0"
+edition = "2021"
+authors = ["oizhaolei@gmail.com"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+csv = "1.1"
+
