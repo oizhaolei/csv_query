@@ -2,32 +2,27 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::{env, error::Error, io, process};
 
-use nom::combinator::map;
-
 use nom::branch::alt;
-use nom::bytes::complete::{tag_no_case, take_till};
-use nom::character::complete::{multispace0, multispace1};
+use nom::bytes::complete::{tag_no_case, take_till, take_while};
+use nom::character::complete::{char, multispace0, multispace1, space0};
+use nom::combinator::map;
 use nom::sequence::tuple;
 use nom::IResult;
+use nom::{multi::separated_list0, sequence::delimited};
+use regex::Regex;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Operator {
-    Not(String),
-    And(String),
-    Or(String),
-    Like(String),
-    NotLike(String),
     Equal(String),
     NotEqual(String),
     Greater(String),
     GreaterOrEqual(String),
     Less(String),
     LessOrEqual(String),
-    In(String),
-    NotIn(String),
-    Is(String),
+    In(Vec<String>),
+    NotIn(Vec<String>),
     Match(String),
-    MatchByFile(String),
+    MatchAnyInFile(Vec<String>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,10 +37,6 @@ fn till_space(s: &str) -> IResult<&str, &str> {
 
 fn binary_comparison_operator(i: &str, value: String) -> IResult<&str, Operator> {
     alt((
-        map(tag_no_case("not_like"), |_| {
-            Operator::NotLike(value.clone())
-        }),
-        map(tag_no_case("like"), |_| Operator::Like(value.clone())),
         map(tag_no_case("!="), |_| Operator::NotEqual(value.clone())),
         map(tag_no_case("<>"), |_| Operator::NotEqual(value.clone())),
         map(tag_no_case(">="), |_| {
@@ -55,12 +46,18 @@ fn binary_comparison_operator(i: &str, value: String) -> IResult<&str, Operator>
         map(tag_no_case("="), |_| Operator::Equal(value.clone())),
         map(tag_no_case("<"), |_| Operator::Less(value.clone())),
         map(tag_no_case(">"), |_| Operator::Greater(value.clone())),
-        map(tag_no_case("in"), |_| Operator::In(value.clone())),
-        map(tag_no_case("not_in"), |_| Operator::NotIn(value.clone())),
-        map(tag_no_case("match"), |_| Operator::Match(value.clone())),
-        map(tag_no_case("match_by_file"), |_| {
-            Operator::MatchByFile(value.clone())
+        map(tag_no_case("in"), |_| {
+            let (_, vec) = parse_query_value_to_vec(&value).unwrap();
+            Operator::In(vec)
         }),
+        map(tag_no_case("not_in"), |_| {
+            let (_, vec) = parse_query_value_to_vec(&value).unwrap();
+            Operator::NotIn(vec)
+        }),
+        map(tag_no_case("match_any_in_file"), |_| {
+            Operator::MatchAnyInFile(read_file_to_vec(&value).unwrap())
+        }),
+        map(tag_no_case("match"), |_| Operator::Match(value.clone())),
     ))(i)
 }
 
@@ -81,6 +78,23 @@ fn parse_query(i: &str) -> IResult<&str, Condition> {
             operate,
         },
     ))
+}
+
+// Parser to extract the list inside parentheses
+fn parse_query_value_to_vec(input: &str) -> IResult<&str, Vec<String>> {
+    // Helper parser to recognize digits
+    fn is_digit(c: char) -> bool {
+        c.is_ascii_digit()
+    }
+
+    // Parse a single number as a string
+    let parse_number = map(take_while(is_digit), |s: &str| s.to_string());
+
+    // Parse a comma-separated list of numbers
+    let parse_list = separated_list0(delimited(space0, char(','), space0), parse_number);
+
+    // Parse the entire list enclosed in parentheses
+    delimited(char('('), parse_list, char(')'))(input)
 }
 
 fn read_file_to_vec(filename: &str) -> Result<Vec<String>, Box<dyn Error>> {
@@ -110,26 +124,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     //TODO parse query
     let (_, condition) = parse_query(&query).unwrap();
     println!("condition: {:?}", condition);
-    match condition.operate {
-        Operator::Not(_) => {}
-        Operator::And(_) => {}
-        Operator::Or(_) => {}
-        Operator::Like(_) => {}
-        Operator::NotLike(_) => {}
-        Operator::Equal(_) => {}
-        Operator::NotEqual(_) => {}
-        Operator::Greater(_) => {}
-        Operator::GreaterOrEqual(_) => {}
-        Operator::Less(_) => {}
-        Operator::LessOrEqual(_) => {}
-        Operator::In(value) => {
-            println!("TODO: convert to vec:{}", value);
-        }
-        Operator::NotIn(_) => {}
-        Operator::Is(_) => {}
-        Operator::Match(_) => {}
-        Operator::MatchByFile(_) => {}
-    }
 
     // Build CSV readers and writers to stdin and stdout, respectively.
     let mut rdr = csv::Reader::from_reader(io::stdin());
@@ -141,11 +135,35 @@ fn run() -> Result<(), Box<dyn Error>> {
     // Before reading our data records, we should write the header record.
     wtr.write_record(rdr.headers()?)?;
 
+    let field_index = rdr
+        .headers()?
+        .iter()
+        .position(|h| h == condition.field)
+        .unwrap();
+
     // Iterate over all the records in `rdr`, and write only records containing
     // `query` to `wtr`.
     for result in rdr.records() {
         let record = result?;
-        if record.iter().any(|field| field == &query) {
+
+        let field_value = &record[field_index];
+        let is_match = match &condition.operate {
+            Operator::Equal(value) => field_value == value,
+            Operator::NotEqual(value) => field_value != value,
+            Operator::Greater(value) => field_value > value,
+            Operator::GreaterOrEqual(value) => field_value >= value,
+            Operator::Less(value) => field_value < value,
+            Operator::LessOrEqual(value) => field_value <= value,
+            Operator::In(vec) => vec.contains(&field_value.to_string()),
+            Operator::NotIn(vec) => !vec.contains(&field_value.to_string()),
+            Operator::Match(regex_str) => Regex::new(regex_str).unwrap().is_match(field_value),
+            Operator::MatchAnyInFile(regex_vec) => regex_vec
+                .iter()
+                .map(|r| Regex::new(r).unwrap())
+                .any(|re| re.is_match(field_value)),
+        };
+
+        if is_match {
             wtr.write_record(&record)?;
         }
     }
@@ -166,24 +184,21 @@ fn main() {
 mod tests {
     use regex::Regex;
 
-    use crate::{parse_query, read_file_to_vec, Condition};
+    use crate::{parse_query, parse_query_value_to_vec, read_file_to_vec, Condition};
     #[test]
     fn test_is_match() {
-        let re = Regex::new(r"\b\w{13}\b").unwrap();
         let hay = "I categorically deny having triskaidekaphobia.";
+        let re = Regex::new(r"\b\w{13}\b").unwrap();
         assert!(re.is_match(hay));
     }
     #[test]
     fn test_is_match_any() {
+        let hay = "https://www.youtube.com/watch?v=TLpufG9s0QY";
         let regex_list = ["^https://www.youtube.com", "^github.com"];
-        let re_list = regex_list
+        let match_any = regex_list
             .iter()
             .map(|r| Regex::new(r).unwrap())
-            .collect::<Vec<Regex>>();
-
-        let hay = "https://www.youtube.com/watch?v=TLpufG9s0QY";
-
-        let match_any = re_list.iter().any(|re| re.is_match(hay));
+            .any(|re| re.is_match(hay));
 
         assert!(match_any);
     }
@@ -203,20 +218,47 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_query_in() {
-        let str = "res_code in (\"200\", \"201\")";
-
+    fn test_parse_query_value_to_vec() {
         assert_eq!(
-            parse_query(str),
+            parse_query_value_to_vec("(200, 201)"),
+            Ok(("", vec!["200".to_string(), "201".to_string()]))
+        );
+    }
+
+    #[test]
+    fn test_parse_query_match() {
+        assert_eq!(
+            parse_query("url match ^https://github.com"),
             Ok((
                 "",
                 Condition {
-                    field: "res_code".to_string(),
-                    operate: crate::Operator::In("(\"200\", \"201\")".to_string()),
+                    field: "url".to_string(),
+                    operate: crate::Operator::Match("^https://github.com".to_string()),
                 }
             ))
         );
-        let str = "res_code IN (\"200\", \"201\")";
+    }
+
+    #[test]
+    fn test_parse_query_match_any_in_file() {
+        assert_eq!(
+            parse_query("url match_any_in_file ./url.regex.txt"),
+            Ok((
+                "",
+                Condition {
+                    field: "url".to_string(),
+                    operate: crate::Operator::MatchAnyInFile(vec![
+                        "^https://www.youtube.com/".to_string(),
+                        "^https://github.com".to_string()
+                    ]),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_query_in() {
+        let str = "res_code in (200, 201)";
 
         assert_eq!(
             parse_query(str),
@@ -224,7 +266,19 @@ mod tests {
                 "",
                 Condition {
                     field: "res_code".to_string(),
-                    operate: crate::Operator::In("(\"200\", \"201\")".to_string()),
+                    operate: crate::Operator::In(vec!["200".to_string(), "201".to_string()]),
+                }
+            ))
+        );
+        let str = "res_code IN (200, 201)";
+
+        assert_eq!(
+            parse_query(str),
+            Ok((
+                "",
+                Condition {
+                    field: "res_code".to_string(),
+                    operate: crate::Operator::In(vec!["200".to_string(), "201".to_string()]),
                 }
             ))
         );
