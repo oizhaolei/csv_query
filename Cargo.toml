@@ -8,4 +8,5 @@ authors = ["oizhaolei@gmail.com"]
 
 [dependencies]
 csv = "1.1"
+regex = "1.10.6"
 
