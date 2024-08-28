@@ -1,11 +1,24 @@
 [package]
 name = "csv_query"
-version = "0.1.0"
+authors = [ "lei.zhao <oizhaolei@gmail.com>" ]
+version = "0.2.0"
 edition = "2021"
-authors = ["oizhaolei@gmail.com"]
+description = "Query csv steam with sql `where-like` language."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/oizhaolei/csv_query"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-csv = "1.1"
+csv = "1.3.0"
+nom = "7.1.3"
+once_cell = "1.19.0"
+regex = "1.10.6"
+serde = { version = "1.0", features = ["derive"] }
 
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+target = "x86_64-unknown-linux-musl"
+
+[package.metadata.rpm.targets]
+csv_query = { path = "/usr/bin/csv_query" }
