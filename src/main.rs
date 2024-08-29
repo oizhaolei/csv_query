@@ -83,12 +83,12 @@ fn parse_query(i: &str) -> IResult<&str, Condition> {
 // Parser to extract the list inside parentheses
 fn parse_query_value_to_vec(input: &str) -> IResult<&str, Vec<String>> {
     // Helper parser to recognize digits
-    fn is_digit(c: char) -> bool {
-        c.is_ascii_digit()
+    fn is_word_or_with_quote(c: char) -> bool {
+        c == '\'' || c == '"' || c.is_alphanumeric()
     }
 
     // Parse a single number as a string
-    let parse_number = map(take_while(is_digit), |s: &str| s.to_string());
+    let parse_number = map(take_while(is_word_or_with_quote), |s: &str| s.to_string());
 
     // Parse a comma-separated list of numbers
     let parse_list = separated_list0(delimited(space0, char(','), space0), parse_number);
@@ -119,11 +119,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         None => return Err(From::from("Usage: PIPELINE | csv_query \"QUERY_STRING\"")),
         Some(query) => query,
     };
-    println!("query: {}", query);
+    eprintln!("query: {}", query);
 
-    //TODO parse query
     let (_, condition) = parse_query(&query).unwrap();
-    println!("condition: {:?}", condition);
+    eprintln!("condition: {:?}", condition);
 
     // Build CSV readers and writers to stdin and stdout, respectively.
     let mut rdr = csv::Reader::from_reader(io::stdin());
@@ -148,12 +147,58 @@ fn run() -> Result<(), Box<dyn Error>> {
 
         let field_value = &record[field_index];
         let is_match = match &condition.operate {
-            Operator::Equal(value) => field_value == value,
-            Operator::NotEqual(value) => field_value != value,
-            Operator::Greater(value) => field_value > value,
-            Operator::GreaterOrEqual(value) => field_value >= value,
-            Operator::Less(value) => field_value < value,
-            Operator::LessOrEqual(value) => field_value <= value,
+            Operator::Equal(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare after ignore quota
+                    field_value == &value[1..value.len() - 1]
+                } else {
+                    field_value == value
+                }
+            }
+            Operator::NotEqual(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare after ignore quota
+                    field_value != &value[1..value.len() - 1]
+                } else {
+                    field_value != value
+                }
+            }
+            Operator::Greater(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare by stirng style
+                    field_value > &value[1..value.len() - 1]
+                } else {
+                    //compare by number style
+                    field_value.parse::<i64>().unwrap() > value.parse::<i64>().unwrap()
+                }
+            }
+            Operator::GreaterOrEqual(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare by stirng style
+                    field_value >= &value[1..value.len() - 1]
+                } else {
+                    //compare by number style
+                    field_value.parse::<i64>().unwrap() >= value.parse::<i64>().unwrap()
+                }
+            }
+            Operator::Less(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare by stirng style
+                    field_value < &value[1..value.len() - 1]
+                } else {
+                    //compare by number style
+                    field_value.parse::<i64>().unwrap() < value.parse::<i64>().unwrap()
+                }
+            }
+            Operator::LessOrEqual(value) => {
+                if Regex::new(r#"['|"][^'"]+['|"]"#).unwrap().is_match(value) {
+                    //compare by stirng style
+                    field_value <= &value[1..value.len() - 1]
+                } else {
+                    //compare by number style
+                    field_value.parse::<i64>().unwrap() <= value.parse::<i64>().unwrap()
+                }
+            }
             Operator::In(vec) => vec.contains(&field_value.to_string()),
             Operator::NotIn(vec) => !vec.contains(&field_value.to_string()),
             Operator::Match(regex_str) => Regex::new(regex_str).unwrap().is_match(field_value),
@@ -185,23 +230,7 @@ mod tests {
     use regex::Regex;
 
     use crate::{parse_query, parse_query_value_to_vec, read_file_to_vec, Condition};
-    #[test]
-    fn test_is_match() {
-        let hay = "I categorically deny having triskaidekaphobia.";
-        let re = Regex::new(r"\b\w{13}\b").unwrap();
-        assert!(re.is_match(hay));
-    }
-    #[test]
-    fn test_is_match_any() {
-        let hay = "https://www.youtube.com/watch?v=TLpufG9s0QY";
-        let regex_list = ["^https://www.youtube.com", "^github.com"];
-        let match_any = regex_list
-            .iter()
-            .map(|r| Regex::new(r).unwrap())
-            .any(|re| re.is_match(hay));
 
-        assert!(match_any);
-    }
     #[test]
     fn test_is_match_regex_file() {
         let re_list = read_file_to_vec("./url.regex.txt")
@@ -216,12 +245,29 @@ mod tests {
 
         assert!(match_any);
     }
+    #[test]
+    fn test_parse_query_equal() {
+        assert_eq!(
+            parse_query("req_method = 'GET'"),
+            Ok((
+                "",
+                Condition {
+                    field: "req_method".to_string(),
+                    operate: crate::Operator::Equal("'GET'".to_string()),
+                }
+            ))
+        );
+    }
 
     #[test]
     fn test_parse_query_value_to_vec() {
         assert_eq!(
             parse_query_value_to_vec("(200, 201)"),
             Ok(("", vec!["200".to_string(), "201".to_string()]))
+        );
+        assert_eq!(
+            parse_query_value_to_vec("('200', '201')"),
+            Ok(("", vec!["'200'".to_string(), "'201'".to_string()]))
         );
     }
 
