@@ -1,19 +1,33 @@
+Query csv steam with sql `where-like` language.
+
 ## Usage:
 
 ``` shell
--- csv_query "select * from ./xxxx.csv where res_code in (200, 201) and cs_byte>=1000 and url in-file-regex ./URLS.lst"
 cat original.csv | csv_query "res_code in (200, 201)"
             | csv_query "cs_byte >= 1000"
             | csv_query "url match_any_in_file ./url.regex.txt"
+            | cut -d , -f 1-4,8
             | tee filtered.csv
+
+```
+
+
+``` shell
+
+cat ./sample.csv | csv_query "resp_size > 116000" | csv_query "req_method = 'CONNECT'"
+  
+```
+
+``` shell
+cat -n 10000 ./sample.csv | csv_query "resp_size > 1000" | csv_query "req_method not_in (CONNECT,GET)" | csv_query "remote_host match http://10\." | csv_query "remote_host match_any_in_file ./url.regex.txt"
 
 ```
 
 ## Query Specification
 
-`Field_Name Operator Value`
 
-- Three parts, separated with SPACE.
+- `Field_Name Operator Value`, three parts.
+- MUST be separated with `SPACE`.
 - Keyword `OR`, `AND` is not supported yet.
 
 For example:
@@ -36,15 +50,4 @@ For example:
 - [X] parse query string with `nom`
 - [X] numeric field compare
 - [X] in-file-with-regex
-
-
-``` shell
-
-head ./sample.csv | ./target/release/csv_query "resp_size > 116000" | ./target/release/csv_query "req_method = 'CONNECT'"
-  
-```
-
-``` shell
- head -n 10000 ./sample.csv | ./target/release/csv_query "resp_size > 1000" | ./target/release/csv_query "req_method not_in (CONNECT,GET)" | ./target/release/csv_query "remote_host match http://10\." | ./target/release/csv_query "remote_host match_any_in_file ./url.regex.txt"
-
-```
+- [X] csv_query "select * from ./xxxx.csv where res_code in (200, 201) and cs_byte >= 1000 and url match_any_in_file ./URLS.lst"

@@ -1,10 +1,8 @@
 mod query;
 
-use std::{env, error::Error, io, process};
-
-use regex::Regex;
-
 use crate::query::{parse_query, Operator};
+use regex::Regex;
+use std::{env, error::Error, io, process};
 
 fn run() -> Result<(), Box<dyn Error>> {
     // Get the query from the positional arguments.

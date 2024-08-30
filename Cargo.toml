@@ -1,9 +1,9 @@
 [package]
 name = "csv_query"
 authors = [ "lei.zhao <oizhaolei@gmail.com>" ]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
-description = "query a csv steam like sql-where"
+description = "Query csv steam with sql `where-like` language."
 license-file = "LICENSE.txt"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

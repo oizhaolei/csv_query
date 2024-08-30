@@ -3,7 +3,7 @@
 %define debug_package %{nil}
 
 Name: csv_query
-Summary: query a csv stream like sql-where
+Summary: Query csv steam with sql `where-like` language.
 Version: @@VERSION@@
 Release: @@RELEASE@@
 License: MIT
