@@ -1,7 +1,7 @@
 [package]
 name = "csv_query"
 authors = [ "lei.zhao <oizhaolei@gmail.com>" ]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Query csv steam with sql `where-like` language."
 license-file = "LICENSE.txt"
@@ -11,6 +11,7 @@ license-file = "LICENSE.txt"
 [dependencies]
 csv = "1.1"
 nom = "7.1.3"
+once_cell = "1.19.0"
 regex = "1.10.6"
 serde = { version = "1.0", features = ["derive"] }
 
