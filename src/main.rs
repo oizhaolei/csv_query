@@ -27,10 +27,10 @@ fn get_or_compile_regex(pattern: &str) -> Regex {
     regex
 }
 
-fn is_match_value(field_value: &str, condition: Condition) -> bool {
-    match condition.operate {
+fn is_match_value(field_value: &str, condition: &Condition) -> bool {
+    match &condition.operate {
         Operator::Equal(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare after ignore quota
                 field_value == &value[1..value.len() - 1]
             } else {
@@ -38,7 +38,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
             }
         }
         Operator::NotEqual(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare after ignore quota
                 field_value != &value[1..value.len() - 1]
             } else {
@@ -46,7 +46,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
             }
         }
         Operator::Greater(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare by stirng style
                 field_value > &value[1..value.len() - 1]
             } else {
@@ -55,7 +55,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
             }
         }
         Operator::GreaterOrEqual(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare by stirng style
                 field_value >= &value[1..value.len() - 1]
             } else {
@@ -64,7 +64,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
             }
         }
         Operator::Less(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare by stirng style
                 field_value < &value[1..value.len() - 1]
             } else {
@@ -73,7 +73,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
             }
         }
         Operator::LessOrEqual(value) => {
-            if RE_QUOTED.is_match(&value) {
+            if RE_QUOTED.is_match(value) {
                 //compare by stirng style
                 field_value <= &value[1..value.len() - 1]
             } else {
@@ -83,7 +83,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
         }
         Operator::In(vec) => vec.contains(&field_value.to_string()),
         Operator::NotIn(vec) => !vec.contains(&field_value.to_string()),
-        Operator::Match(regex_str) => get_or_compile_regex(&regex_str).is_match(field_value),
+        Operator::Match(regex_str) => get_or_compile_regex(regex_str).is_match(field_value),
         Operator::MatchAnyInFile(regex_vec) => regex_vec
             .iter()
             .any(|r| get_or_compile_regex(r).is_match(field_value)),
@@ -124,7 +124,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         let record = result?;
 
         let field_value = &record[field_index];
-        let is_match = is_match_value(field_value, condition.clone());
+        let is_match = is_match_value(field_value, &condition);
 
         if is_match {
             wtr.write_record(&record)?;
@@ -154,84 +154,84 @@ mod tests {
     fn test_is_match_value() {
         assert!(is_match_value(
             "GET",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::Equal("GET".to_string()),
             }
         ));
         assert!(is_match_value(
             "GET",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::NotEqual("PUT".to_string()),
             }
         ));
         assert!(is_match_value(
             "300",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::Greater("100".to_string()),
             }
         ));
         assert!(!is_match_value(
             "90",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::Greater("100".to_string()),
             }
         ));
         assert!(is_match_value(
             "300",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::GreaterOrEqual("100".to_string()),
             }
         ));
         assert!(!is_match_value(
             "90",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::GreaterOrEqual("100".to_string()),
             }
         ));
         assert!(is_match_value(
             "90",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::GreaterOrEqual("90".to_string()),
             }
         ));
         assert!(is_match_value(
             "200",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::In(vec!["200".to_string()]),
             }
         ));
         assert!(is_match_value(
             "200",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::In(vec!["200".to_string(), "201".to_string()]),
             }
         ));
         assert!(is_match_value(
             "300",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::NotIn(vec!["200".to_string(), "201".to_string()]),
             }
         ));
         assert!(is_match_value(
             "300",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::Match("3..".to_string()),
             }
         ));
         assert!(is_match_value(
             "300",
-            Condition {
+            &Condition {
                 field: '-'.to_string(),
                 operate: Operator::MatchAnyInFile(vec!["2..".to_string(), "3..".to_string()]),
             }
