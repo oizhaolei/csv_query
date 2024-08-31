@@ -68,8 +68,7 @@ pub fn parse_query(i: &str) -> IResult<&str, Condition> {
         till_space,
         multispace1,
     ))(i)?;
-    let value = remain.trim().to_string();
-    let (_, operate) = binary_comparison_operator(op, value.clone())?;
+    let (_, operate) = binary_comparison_operator(op, remain.to_string())?;
     Ok((
         "",
         Condition {

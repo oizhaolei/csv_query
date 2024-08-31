@@ -34,7 +34,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
                 //compare after ignore quota
                 field_value == &value[1..value.len() - 1]
             } else {
-                field_value == &value
+                field_value == value
             }
         }
         Operator::NotEqual(value) => {
@@ -42,7 +42,7 @@ fn is_match_value(field_value: &str, condition: Condition) -> bool {
                 //compare after ignore quota
                 field_value != &value[1..value.len() - 1]
             } else {
-                field_value != &value
+                field_value != value
             }
         }
         Operator::Greater(value) => {
