@@ -1,6 +1,7 @@
 mod query;
 
 use crate::query::{parse_query, Operator};
+use csv::{Reader, WriterBuilder};
 use once_cell::sync::Lazy;
 use query::Condition;
 use regex::Regex;
@@ -103,8 +104,8 @@ fn run() -> Result<(), Box<dyn Error>> {
     eprintln!("condition: {:?}", condition);
 
     // Build CSV readers and writers to stdin and stdout, respectively.
-    let mut rdr = csv::Reader::from_reader(io::stdin());
-    let mut wtr = csv::WriterBuilder::new()
+    let mut rdr = Reader::from_reader(io::stdin());
+    let mut wtr = WriterBuilder::new()
         .delimiter(b',')
         .quote_style(csv::QuoteStyle::Always)
         .from_writer(io::stdout());

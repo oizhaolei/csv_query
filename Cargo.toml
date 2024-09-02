@@ -1,7 +1,7 @@
 [package]
 name = "csv_query"
 authors = [ "lei.zhao <oizhaolei@gmail.com>" ]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Query csv steam with sql `where-like` language."
 license-file = "LICENSE.txt"
